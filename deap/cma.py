@@ -25,6 +25,11 @@ from math import sqrt, log, exp
 import numpy
 
 import tools
+import benchmarks
+import pdb
+
+import tensorflow_probability as tfp
+import tensorflow as tf
 
 
 class Strategy(object):
@@ -256,6 +261,8 @@ class StrategyOnePlusLambda(object):
         self.computeParams(kargs)
         self.psucc = self.ptarg
 
+        # self.update_covari(self)
+
     def computeParams(self, params):
         """Computes the parameters depending on :math:`\lambda`. It needs to
         be called again if :math:`\lambda` changes during evolution.
@@ -300,6 +307,8 @@ class StrategyOnePlusLambda(object):
         p_succ = float(lambda_succ) / self.lambda_
         self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
 
+        # pdb.set_trace()
+
         if self.parent.fitness <= population[0].fitness:
             x_step = (population[0] - numpy.array(self.parent)) / self.sigma
             self.parent = copy.deepcopy(population[0])
@@ -309,6 +318,142 @@ class StrategyOnePlusLambda(object):
             else:
                 self.pc = (1 - self.cc) * self.pc
                 self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
+        self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
+
+        # We use Cholesky since for now we have no use of eigen decomposition
+        # Basically, Cholesky returns a matrix A as C = A*A.T
+        # Eigen decomposition returns two matrix B and D^2 as C = B*D^2*B.T = B*D*D*B.T
+        # So A == B*D
+        # To compute the new individual we need to multiply each vector z by A
+        # as y = centroid + sigma * A*z
+        # So the Cholesky is more straightforward as we don't need to compute
+        # the squareroot of D^2, and multiply B and D in order to get A, we directly get A.
+        # This can't be done (without cost) with the standard CMA-ES as the eigen decomposition is used
+        # to compute covariance matrix inverse in the step-size evolutionary path computation.
+        self.A = numpy.linalg.cholesky(self.C)
+
+
+    ### these funcs have to be removed for consistency
+
+    def update_covari(self, population_fitness):
+        # pdb.set_trace()
+
+        if self.parent.fitness <= population_fitness:
+            x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+            self.parent = copy.deepcopy(population[0])
+            if self.psucc < self.pthresh:
+                self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+            else:
+                self.pc = (1 - self.cc) * self.pc
+                self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
+
+    def update_psycho(self, population, objective_func, psychometric, bernoulli):
+        """Update the current covariance matrix strategy from the
+        *population*.
+
+        :param population: A list of individuals from which to update the
+                           parameters.
+        """
+
+        population.sort(key=lambda ind: ind.fitness, reverse=True)
+        lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+        p_succ = float(lambda_succ) / self.lambda_
+        self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
+
+        alpha_ = 10
+        beta_ =  0.01
+        gamma_ = 0
+        lambd_ = 0.02
+        prev_value = objective_func(population[0])[0]
+        value = objective_func(self.parent)[0]
+
+        prob_= psychometric(prev_value, value, alpha_, beta_, gamma_, lambd_)
+        binary = bernoulli(prob_).item()
+
+        if prev_value > value  : # when person prefer the current params 
+            if binary == 1: # sensed the change, and want to choose it
+                # self.update_covari(population[0].fitness)
+                if self.parent.fitness <= population[0].fitness:
+                    x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+                    self.parent = copy.deepcopy(population[0])
+                    if self.psucc < self.pthresh:
+                        self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                        self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+                    else:
+                        self.pc = (1 - self.cc) * self.pc
+                        self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
+            else:
+                print("not moved")        
+        else: # when person doesnt prefer the current params 
+            if binary == 0: # sensed the change, but don't want to choose it
+                pass
+            else:
+                # update_covari(population)
+                if self.parent.fitness <= population[0].fitness:
+                    x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+                    self.parent = copy.deepcopy(population[0])
+                    if self.psucc < self.pthresh:
+                        self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                        self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+                    else:
+                        self.pc = (1 - self.cc) * self.pc
+                        self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
+
+
+        self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
+
+        # We use Cholesky since for now we have no use of eigen decomposition
+        # Basically, Cholesky returns a matrix A as C = A*A.T
+        # Eigen decomposition returns two matrix B and D^2 as C = B*D^2*B.T = B*D*D*B.T
+        # So A == B*D
+        # To compute the new individual we need to multiply each vector z by A
+        # as y = centroid + sigma * A*z
+        # So the Cholesky is more straightforward as we don't need to compute
+        # the squareroot of D^2, and multiply B and D in order to get A, we directly get A.
+        # This can't be done (without cost) with the standard CMA-ES as the eigen decomposition is used
+        # to compute covariance matrix inverse in the step-size evolutionary path computation.
+        self.A = numpy.linalg.cholesky(self.C)
+
+
+
+
+
+
+    def update_modified(self, population, objective_func):
+        """Update the current covariance matrix strategy from the
+        *population*.
+
+        :param population: A list of individuals from which to update the
+                           parameters.
+        """
+        population.sort(key=lambda ind: ind.fitness, reverse=True)
+        lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+        p_succ = float(lambda_succ) / self.lambda_
+        self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
+
+        # User selects the preference
+        # pdb.set_trace()
+
+        # like prev parent better, do nothing 
+        if objective_func(self.parent)[0] < objective_func(population[0])[0]:
+        # if objective_func(self.parent) < objective_func(population[0]):  
+            # self.parent = copy.deepcopy(population[0])
+            pass 
+        elif self.parent.fitness <= population[0].fitness:
+            x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+            self.parent = copy.deepcopy(population[0])
+            if self.psucc < self.pthresh:
+                self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+            else:
+                self.pc = (1 - self.cc) * self.pc
+                self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
 
         self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
 
