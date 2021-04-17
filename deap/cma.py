@@ -453,9 +453,6 @@ class StrategyOnePlusLambda(object):
         # pdb.set_trace()
         if problem == 'minimize':
             if objective_func(self.parent) > objective_func(population[0]):
-                pass 
-            # elif self.parent.fitness <= population[0].fitness:
-            else:
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                 self.parent = copy.deepcopy(population[0])
                 if self.psucc < self.pthresh:
@@ -470,15 +467,7 @@ class StrategyOnePlusLambda(object):
 
             self.A = numpy.linalg.cholesky(self.C)
         else: 
-            # # pdb.set_trace()
-            # if objective_func(self.parent) > objective_func(population[0]):
-            #     pass             
-
-            # elif self.parent.fitness <= population[0].fitness:
             if objective_func(self.parent) < objective_func(population[0]):
-            # if objective_func(self.parent) <= objective_func(population[0]):
-            # else:
-            # if objective_func(self.parent) < objective_func(population[0]):
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                 self.parent = copy.deepcopy(population[0])
                 if self.psucc < self.pthresh:
