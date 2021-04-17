@@ -295,6 +295,20 @@ class StrategyOnePlusLambda(object):
         arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
         return map(ind_init, arz)
 
+    def generate_capped(self, ind_init, low_bound, up_bound, dim):
+        """Generate a population of :math:`\lambda` individuals of type
+        *ind_init* from the current strategy.
+
+        :param ind_init: A function object that is able to initialize an
+                         individual from a list.
+        :returns: A list of individuals.
+        """
+        arz = numpy.random.standard_normal((self.lambda_, self.dim))
+        arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+        arz = numpy.clip(arz, numpy.array([low_bound]*dim),numpy.array([up_bound]*dim))
+
+        return map(ind_init, arz)
+
     def update(self, population):
         """Update the current covariance matrix strategy from the
         *population*.
@@ -420,11 +434,7 @@ class StrategyOnePlusLambda(object):
         self.A = numpy.linalg.cholesky(self.C)
 
 
-
-
-
-
-    def update_modified(self, population, objective_func):
+    def update_modified(self, population, objective_func, problem):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -440,22 +450,51 @@ class StrategyOnePlusLambda(object):
         # pdb.set_trace()
 
         # like prev parent better, do nothing 
-        if objective_func(self.parent)[0] < objective_func(population[0])[0]:
-        # if objective_func(self.parent) < objective_func(population[0]):  
-            # self.parent = copy.deepcopy(population[0])
-            pass 
-        elif self.parent.fitness <= population[0].fitness:
-            x_step = (population[0] - numpy.array(self.parent)) / self.sigma
-            self.parent = copy.deepcopy(population[0])
-            if self.psucc < self.pthresh:
-                self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
-                self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+        # pdb.set_trace()
+        if problem == 'minimize':
+            if objective_func(self.parent) > objective_func(population[0]):
+                pass 
+            # elif self.parent.fitness <= population[0].fitness:
             else:
-                self.pc = (1 - self.cc) * self.pc
-                self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+                x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+                self.parent = copy.deepcopy(population[0])
+                if self.psucc < self.pthresh:
+                    self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                    self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+                else:
+                    self.pc = (1 - self.cc) * self.pc
+                    self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+            self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
 
+            self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
 
-        self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
+            self.A = numpy.linalg.cholesky(self.C)
+        else: 
+            # # pdb.set_trace()
+            # if objective_func(self.parent) > objective_func(population[0]):
+            #     pass             
+
+            # elif self.parent.fitness <= population[0].fitness:
+            if objective_func(self.parent) < objective_func(population[0]):
+            # if objective_func(self.parent) <= objective_func(population[0]):
+            # else:
+            # if objective_func(self.parent) < objective_func(population[0]):
+                x_step = (population[0] - numpy.array(self.parent)) / self.sigma
+                self.parent = copy.deepcopy(population[0])
+                if self.psucc < self.pthresh:
+                    self.pc = (1 - self.cc) * self.pc + sqrt(self.cc * (2 - self.cc)) * x_step
+                    self.C = (1 - self.ccov) * self.C + self.ccov * numpy.outer(self.pc, self.pc)
+                else:
+                    self.pc = (1 - self.cc) * self.pc
+                    self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
+
+            # if not objective_func(self.parent) > objective_func(population[0]):
+            self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
+
+            self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
+
+            self.A = numpy.linalg.cholesky(self.C)
+
 
         # We use Cholesky since for now we have no use of eigen decomposition
         # Basically, Cholesky returns a matrix A as C = A*A.T
@@ -467,7 +506,7 @@ class StrategyOnePlusLambda(object):
         # the squareroot of D^2, and multiply B and D in order to get A, we directly get A.
         # This can't be done (without cost) with the standard CMA-ES as the eigen decomposition is used
         # to compute covariance matrix inverse in the step-size evolutionary path computation.
-        self.A = numpy.linalg.cholesky(self.C)
+        # self.A = numpy.linalg.cholesky(self.C)
 
 
 class StrategyMultiObjective(object):
