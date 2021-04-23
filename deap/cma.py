@@ -364,7 +364,7 @@ class StrategyOnePlusLambda(object):
                 self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
 
 
-    def update_psycho(self, population, objective_func, psychometric, bernoulli):
+    def update_psycho(self, population, objective_func, psychometric, bernoulli, alpha_, beta_, gamma_, lambd_):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -377,10 +377,7 @@ class StrategyOnePlusLambda(object):
         p_succ = float(lambda_succ) / self.lambda_
         self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
 
-        alpha_ = 10
-        beta_ =  0.01
-        gamma_ = 0
-        lambd_ = 0.02
+
         prev_value = objective_func(population[0])[0]
         value = objective_func(self.parent)[0]
 
@@ -434,7 +431,7 @@ class StrategyOnePlusLambda(object):
         self.A = numpy.linalg.cholesky(self.C)
 
 
-    def update_modified(self, population, objective_func, problem):
+    def update_modified(self, population, objective_func, problem, cap_sigma):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -450,7 +447,6 @@ class StrategyOnePlusLambda(object):
         # pdb.set_trace()
 
         # like prev parent better, do nothing 
-        # pdb.set_trace()
         if problem == 'minimize':
             if objective_func(self.parent) > objective_func(population[0]):
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
@@ -479,8 +475,8 @@ class StrategyOnePlusLambda(object):
 
             # if not objective_func(self.parent) > objective_func(population[0]):
             self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
-
-            self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
+            # pdb.set_trace()
+            self.sigma = numpy.clip(self.sigma, 0, cap_sigma)
 
             self.A = numpy.linalg.cholesky(self.C)
 
@@ -496,6 +492,8 @@ class StrategyOnePlusLambda(object):
         # This can't be done (without cost) with the standard CMA-ES as the eigen decomposition is used
         # to compute covariance matrix inverse in the step-size evolutionary path computation.
         # self.A = numpy.linalg.cholesky(self.C)
+
+        return self.sigma
 
 
 class StrategyMultiObjective(object):
