@@ -431,7 +431,7 @@ class StrategyOnePlusLambda(object):
         self.A = numpy.linalg.cholesky(self.C)
 
 
-    def update_modified(self, population, objective_func, problem, cap_sigma):
+    def update_modified(self, population, objective_func, problem, cap_sigma, ranknet):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -449,6 +449,7 @@ class StrategyOnePlusLambda(object):
         # like prev parent better, do nothing 
         if problem == 'minimize':
             if objective_func(self.parent) > objective_func(population[0]):
+            # if ranknet(numpy.array([self.parent])) > ranknet(numpy.array([population[0]])):    
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                 self.parent = copy.deepcopy(population[0])
                 if self.psucc < self.pthresh:
@@ -464,6 +465,7 @@ class StrategyOnePlusLambda(object):
             self.A = numpy.linalg.cholesky(self.C)
         else: 
             if objective_func(self.parent) < objective_func(population[0]):
+            # if ranknet(numpy.array([self.parent])) < ranknet(numpy.array([population[0]])):   
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                 self.parent = copy.deepcopy(population[0])
                 if self.psucc < self.pthresh:
