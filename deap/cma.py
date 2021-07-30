@@ -281,6 +281,7 @@ class StrategyOnePlusLambda(object):
         self.cc = params.get("cc", 2.0 / (self.dim + 2.0))
         self.ccov = params.get("ccov", 2.0 / (self.dim ** 2 + 6.0))
         self.pthresh = params.get("pthresh", 0.44)
+        # self.pthresh = params.get("pthresh", 0.6)
 
     def generate(self, ind_init):
         """Generate a population of :math:`\lambda` individuals of type
@@ -373,7 +374,13 @@ class StrategyOnePlusLambda(object):
         """
 
         population.sort(key=lambda ind: ind.fitness, reverse=True)
-        lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+
+        # lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+        if problem == 'minimize':
+            lambda_succ = sum([objective_func(self.parent)  > objective_func(population[0])]) + sum( self.parent.fitness <= ind.fitness for ind in population[1:])
+        else:
+            lambda_succ = sum([objective_func(self.parent)  < objective_func(population[0])])+ sum(self.parent.fitness <= ind.fitness for ind in population[1:])
+
         p_succ = float(lambda_succ) / self.lambda_
         self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
 
@@ -431,16 +438,31 @@ class StrategyOnePlusLambda(object):
         self.A = numpy.linalg.cholesky(self.C)
 
 
-    def update_modified(self, population, objective_func, problem, cap_sigma, ranknet):
+    def update_modified(self, population, objective_func, problem, low_bounds, up_bounds):
         """Update the current covariance matrix strategy from the
         *population*.
 
         :param population: A list of individuals from which to update the
                            parameters.
         """
+        # pdb.set_trace()
         population.sort(key=lambda ind: ind.fitness, reverse=True)
-        lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+
+        # lambda_succ = sum(self.parent.fitness <= ind.fitness for ind in population)
+        if problem == 'minimize':
+            lambda_succ = sum([objective_func(self.parent)  > objective_func(population[0])]) + sum( self.parent.fitness <= ind.fitness for ind in population[1:])
+        else:
+            lambda_succ = sum([objective_func(self.parent)  < objective_func(population[0])])+ sum(self.parent.fitness <= ind.fitness for ind in population[1:])
+
+        # if problem == 'minimize':
+        #     lambda_succ = sum([objective_func(self.parent)  > objective_func(population[0])])
+        # else:
+        #     lambda_succ = sum([objective_func(self.parent)  < objective_func(population[0])])
+
+
+        # print(lambda_succ)
         p_succ = float(lambda_succ) / self.lambda_
+        # p_succ = 1
         self.psucc = (1 - self.cp) * self.psucc + self.cp * p_succ
 
         # User selects the preference
@@ -460,10 +482,17 @@ class StrategyOnePlusLambda(object):
                     self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
             self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
 
-            self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
+            # self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
+
+            if population[0] < low_bounds or population[0] > upper_bounds:
+                self.sigma = 5
+
 
             self.A = numpy.linalg.cholesky(self.C)
         else: 
+            # if population[0] < low_bounds or population[0] > up_bounds:  
+            #     pass
+            # else:
             if objective_func(self.parent) < objective_func(population[0]):
             # if ranknet(numpy.array([self.parent])) < ranknet(numpy.array([population[0]])):   
                 x_step = (population[0] - numpy.array(self.parent)) / self.sigma
@@ -477,8 +506,13 @@ class StrategyOnePlusLambda(object):
 
             # if not objective_func(self.parent) > objective_func(population[0]):
             self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
-            # pdb.set_trace()
-            self.sigma = numpy.clip(self.sigma, 0, cap_sigma)
+
+            # self.sigma = numpy.clip(self.sigma, 0, cap_sigma)
+
+            if population[0] < low_bounds or population[0] > up_bounds:
+                self.sigma = 5
+                # self.parent.fitness.values = -100000
+                # self.d = 100000
 
             self.A = numpy.linalg.cholesky(self.C)
 
