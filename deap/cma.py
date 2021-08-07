@@ -365,7 +365,7 @@ class StrategyOnePlusLambda(object):
                 self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
 
 
-    def update_psycho(self, population, objective_func, psychometric, bernoulli, alpha_, beta_, gamma_, lambd_):
+    def update_psycho(self, population, objective_func, psychometric, bernoulli, alpha_, beta_, gamma_, lambd_, low_bounds, upper_bounds, problem, set_bound_stepsize = True):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -424,6 +424,10 @@ class StrategyOnePlusLambda(object):
 
 
         self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
+
+        if set_bound_stepsize:
+            if population[0] < low_bounds or population[0] > upper_bounds:
+                self.sigma = 5
 
         # We use Cholesky since for now we have no use of eigen decomposition
         # Basically, Cholesky returns a matrix A as C = A*A.T
