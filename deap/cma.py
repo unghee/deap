@@ -31,6 +31,7 @@ import pdb
 import tensorflow_probability as tfp
 import tensorflow as tf
 
+from scipy.stats import truncnorm
 
 class Strategy(object):
     """
@@ -308,6 +309,51 @@ class StrategyOnePlusLambda(object):
         arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
         arz = numpy.clip(arz, numpy.array([low_bound]*dim),numpy.array([up_bound]*dim))
 
+        # pdb.set_trace()
+
+        return map(ind_init, arz)
+
+    def generate_reject(self, ind_init, low_bound, up_bound, dim):
+        """Generate a population of :math:`\lambda` individuals of type
+        *ind_init* from the current strategy.
+
+        :param ind_init: A function object that is able to initialize an
+                         individual from a list.
+        :returns: A list of individuals.
+        """
+
+        arz = numpy.random.standard_normal((self.lambda_, self.dim))
+        arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+
+        while (arz < numpy.array([low_bound]*dim)).any() or (arz >numpy.array([up_bound]*dim)).any():
+            arz = numpy.random.standard_normal((self.lambda_, self.dim))
+            arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+
+        # pdb.set_trace()
+
+        return map(ind_init, arz)
+
+
+
+    def generate_truncated(self, ind_init, low_bound, up_bound):
+        """Generate a population of :math:`\lambda` individuals of type
+        *ind_init* from the current strategy.
+
+        :param ind_init: A function object that is able to initialize an
+                         individual from a list.
+        :returns: A list of individuals.
+        """
+        def get_truncated_normal(mean=0, sd=1, low=low_bound, upp=up_bound):
+            return truncnorm(
+                (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
+
+        X = get_truncated_normal()
+        arz = X.rvs(self.lambda_* self.dim)
+        arz=arz.reshape((-1, self.dim))
+        arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+
+        # pdb.set_trace()
+
         return map(ind_init, arz)
 
     def update(self, population):
@@ -442,7 +488,7 @@ class StrategyOnePlusLambda(object):
         self.A = numpy.linalg.cholesky(self.C)
 
 
-    def update_modified(self, population, objective_func, problem, low_bounds, up_bounds):
+    def update_modified(self, population, objective_func, problem, low_bounds, up_bounds, sigma_threshold):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -488,8 +534,8 @@ class StrategyOnePlusLambda(object):
 
             # self.sigma = numpy.clip(self.sigma, 0, self.lambda_)
 
-            if population[0] < low_bounds or population[0] > upper_bounds:
-                self.sigma = 5
+            if population[0] < low_bounds or population[0] > up_bounds:
+                self.sigma = sigma_threshold
 
 
             self.A = numpy.linalg.cholesky(self.C)
@@ -514,7 +560,9 @@ class StrategyOnePlusLambda(object):
             # self.sigma = numpy.clip(self.sigma, 0, cap_sigma)
 
             if population[0] < low_bounds or population[0] > up_bounds:
-                self.sigma = 5
+                # self.sigma = 5 # for guass worked well!
+                self.sigma = sigma_threshold
+
                 # self.parent.fitness.values = -100000
                 # self.d = 100000
 
