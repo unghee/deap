@@ -411,7 +411,7 @@ class StrategyOnePlusLambda(object):
                 self.C = (1 - self.ccov) * self.C + self.ccov * (numpy.outer(self.pc, self.pc) + self.cc * (2 - self.cc) * self.C)
 
 
-    def update_psycho(self, population, objective_func, psychometric, bernoulli, alpha_, beta_, gamma_, lambd_, low_bounds, upper_bounds, problem, set_bound_stepsize = True):
+    def update_psycho(self, population, objective_func, psychometric, bernoulli, alpha_, beta_, gamma_, lambd_, low_bounds, upper_bounds, problem, sigma_threshold):
         """Update the current covariance matrix strategy from the
         *population*.
 
@@ -425,6 +425,7 @@ class StrategyOnePlusLambda(object):
         if problem == 'minimize':
             lambda_succ = sum([objective_func(self.parent)  > objective_func(population[0])]) + sum( self.parent.fitness <= ind.fitness for ind in population[1:])
         else:
+            ValueError("maximize not implemented")
             lambda_succ = sum([objective_func(self.parent)  < objective_func(population[0])])+ sum(self.parent.fitness <= ind.fitness for ind in population[1:])
 
         p_succ = float(lambda_succ) / self.lambda_
@@ -440,7 +441,7 @@ class StrategyOnePlusLambda(object):
         if prev_value > value  : # when person prefer the current params 
             if binary == 1: # sensed the change, and want to choose it
                 # self.update_covari(population[0].fitness)
-                if self.parent.fitness <= population[0].fitness:
+                # if self.parent.fitness <= population[0].fitness:
                     x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                     self.parent = copy.deepcopy(population[0])
                     if self.psucc < self.pthresh:
@@ -457,7 +458,7 @@ class StrategyOnePlusLambda(object):
                 pass
             else:
                 # update_covari(population)
-                if self.parent.fitness <= population[0].fitness:
+                # if self.parent.fitness <= population[0].fitness:
                     x_step = (population[0] - numpy.array(self.parent)) / self.sigma
                     self.parent = copy.deepcopy(population[0])
                     if self.psucc < self.pthresh:
@@ -471,9 +472,12 @@ class StrategyOnePlusLambda(object):
 
         self.sigma = self.sigma * exp(1.0 / self.d * (self.psucc - self.ptarg) / (1.0 - self.ptarg))
 
-        if set_bound_stepsize:
-            if population[0] < low_bounds or population[0] > upper_bounds:
-                self.sigma = 5
+        # if set_bound_stepsize:
+        #     if population[0] < low_bounds or population[0] > upper_bounds:
+        #         self.sigma = 5
+
+        if population[0] < low_bounds or population[0] > upper_bounds:
+            self.sigma = sigma_threshold
 
         # We use Cholesky since for now we have no use of eigen decomposition
         # Basically, Cholesky returns a matrix A as C = A*A.T
