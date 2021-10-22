@@ -295,6 +295,8 @@ class StrategyOnePlusLambda(object):
         # self.y = numpy.dot(self.A, numpy.random.standard_normal(self.dim))
         arz = numpy.random.standard_normal((self.lambda_, self.dim))
         arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+
+        pdb.set_trace()
         return map(ind_init, arz)
 
     def generate_capped(self, ind_init, low_bound, up_bound, dim):
@@ -343,16 +345,30 @@ class StrategyOnePlusLambda(object):
                          individual from a list.
         :returns: A list of individuals.
         """
+        # def get_truncated_normal(mean=0, sd=1, low=low_bound, upp=up_bound):
         def get_truncated_normal(mean=0, sd=1, low=low_bound, upp=up_bound):
             return truncnorm(
                 (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
 
-        X = get_truncated_normal()
-        arz = X.rvs(self.lambda_* self.dim)
-        arz=arz.reshape((-1, self.dim))
-        arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+        arz = numpy.zeros((self.lambda_,self.dim))
+        for i in range(self.lambda_):
+            for j in range(self.dim):
+                    try:
+                        arz[i][j] = get_truncated_normal(mean = self.parent[j], sd = self.sigma).rvs()
+                    except ValueError:
+                        arz[i][j] = self.parent[j]
+                 
+
 
         # pdb.set_trace()
+
+        # X = get_truncated_normal(mean = self.parent, sd = self.sigma)
+        # arz = X.rvs(self.lambda_* self.dim)
+        # arz=arz.reshape((-1, self.dim))
+
+        # arz = self.parent + self.sigma * numpy.dot(arz, self.A.T)
+
+        
 
         return map(ind_init, arz)
 
