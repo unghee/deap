@@ -354,7 +354,7 @@ class StrategyOnePlusLambda(object):
         for i in range(self.lambda_):
             for j in range(self.dim):
                     try:
-                        arz[i][j] = get_truncated_normal(mean = self.parent[j], sd = self.sigma).rvs()
+                        arz[i][j] = get_truncated_normal(mean = self.parent[j], sd = self.sigma,low=low_bound[j], upp=up_bound[j]).rvs()
                     except ValueError:
                         arz[i][j] = self.parent[j]
                  
